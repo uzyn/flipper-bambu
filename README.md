@@ -1,6 +1,8 @@
 # flipper-bambu
 
-NFC parser for Bambu Lab spool tags on Flipper Zero.
+NFC parser for Bambu Lab filament spool tags on [Flipper Zero](https://flipper.net).
+
+![screenshot-1-main](/Users/uzyn/Projects/Hack/flipper-bambu/media/screenshot-1-main.png) ![screenshot-2-config](/Users/uzyn/Projects/Hack/flipper-bambu/media/screenshot-2-config.png)
 
 ## Features
 
