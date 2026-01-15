@@ -1,0 +1,3 @@
+[submodule "flipperzero-firmware"]
+	path = flipperzero-firmware
+	url = https://github.com/flipperdevices/flipperzero-firmware.git

@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Parser Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run parser validation tests
+        run: make test
+
+  build:
+    name: Build Plugin
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: test  # Only build if tests pass
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout flipperzero-firmware submodule
+        run: |
+          git submodule update --init flipperzero-firmware
+          cd flipperzero-firmware
+          git submodule update --init --depth 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache Flipper toolchain
+        uses: actions/cache@v4
+        with:
+          path: flipperzero-firmware/toolchain
+          key: flipper-toolchain-${{ runner.os }}-v2
+          restore-keys: |
+            flipper-toolchain-${{ runner.os }}-
+
+      - name: Build Bambu parser plugin
+        env:
+          FBT_NO_SYNC: 1
+          FBT_GIT_SUBMODULE_SHALLOW: 1
+        run: make build
+
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bambu_parser
+          path: dist/bambu_parser.fal
+          retention-days: 30

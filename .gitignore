@@ -1,0 +1,10 @@
+# fbt build artifacts
+flipperzero-firmware/build/
+flipperzero-firmware/dist/
+flipperzero-firmware/toolchain/
+
+# Distribution output
+dist/
+
+# Test binary
+test/test_bambu
