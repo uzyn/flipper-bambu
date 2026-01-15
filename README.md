@@ -68,4 +68,4 @@ make test
 
 ## License
 
-This project is for educational and legitimate use only. No warranty provided.
+GPL-3.0 ⋅ U-Zyn Chua [https://uzyn.com](https://uzyn.com)
