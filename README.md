@@ -1,8 +1,11 @@
 # flipper-bambu
 
-NFC parser for Bambu Lab filament spool tags on [Flipper Zero](https://flipper.net).
+NFC parser for Bambu Lab filament spool RFID tags on [Flipper Zero](https://flipper.net).
 
-![screenshot-1-main](/Users/uzyn/Projects/Hack/flipper-bambu/media/screenshot-1-main.png) ![screenshot-2-config](/Users/uzyn/Projects/Hack/flipper-bambu/media/screenshot-2-config.png)
+<p>
+  <img src="media/screenshot-1-main.png" alt="Screenshot showing filament color, code and production date" width="384" />
+  <img src="media/screenshot-2-config.png" alt="Screenshot showing configurations" width="384" />
+</p>
 
 ## Features
 
@@ -65,4 +68,4 @@ make test
 
 ## License
 
-This project is for educational and legitimate use only. No warranty provided.
+GPL-3.0 ⋅ U-Zyn Chua [https://uzyn.com](https://uzyn.com)
