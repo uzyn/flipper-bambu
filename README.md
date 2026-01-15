@@ -19,8 +19,6 @@ NFC parser for Bambu Lab filament spool RFID tags on [Flipper Zero](https://flip
 
 ## Installation
 
-### Pre-built Plugin
-
 1. Download `bambu_parser.fal` from the [Releases](https://github.com/uzyn/flipper-bambu/releases) page
 2. Copy to Flipper Zero SD card: `/ext/apps_data/nfc/plugins/`. You can write to the card directly or via [qFlipper](https://flipper.net/pages/downloads)
 3. Restart the NFC app.
