@@ -17,6 +17,8 @@ NFC parser for Bambu Lab filament spool RFID tags on [Flipper Zero](https://flip
 - Temperature settings: hotend min/max, drying temp/hours
 - Works with stock firmware (no custom flash needed)
 
+Watch the [demo video](https://www.youtube.com/watch?v=iJgRLGE2dqY) on YouTube.
+
 ## Installation
 
 1. Download `bambu_parser.fal` from the [Releases](https://github.com/uzyn/flipper-bambu/releases) page
