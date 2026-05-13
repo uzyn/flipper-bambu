@@ -30,6 +30,7 @@ copy-plugin:
 		echo "    targets=[\"f7\"]," >> $(FIRMWARE_DIR)/applications/main/nfc/application.fam; \
 		echo "    requires=[\"nfc\"]," >> $(FIRMWARE_DIR)/applications/main/nfc/application.fam; \
 		echo "    sources=[\"plugins/supported_cards/bambu.c\"]," >> $(FIRMWARE_DIR)/applications/main/nfc/application.fam; \
+		echo "    fap_version=\"1.1\"," >> $(FIRMWARE_DIR)/applications/main/nfc/application.fam; \
 		echo ")" >> $(FIRMWARE_DIR)/applications/main/nfc/application.fam; \
 	fi
 
