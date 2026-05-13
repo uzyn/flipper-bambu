@@ -32,6 +32,7 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"A00-G1", "10501", "Bambu Green"},
     {"A00-G2", "10502", "Mistletoe Green"},
     {"A00-G3", "10503", "Bright Green"},
+    {"A00-G6", "10501", "Bambu Green"},
     {"A00-K0", "10101", "Black"},
     {"A00-M0", "10900", "Arctic Whisper"},
     {"A00-M1", "10901", "Solar Breeze"},
@@ -88,6 +89,7 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"A02-B2", "13600", "Cobalt Blue Metallic"},
     {"A02-D2", "13100", "Iron Gray Metallic"},
     {"A02-G2", "13500", "Oxide Green Metallic"},
+    {"A02-N3", "13800", "Copper Brown Metallic"},
     {"A02-Y1", "13400", "Iridium Gold Metallic"},
 
     // PLA Silk+ (A06-xxx) - Material ID: GFA06
@@ -137,6 +139,7 @@ static const BambuFilamentInfo bambu_filament_table[] = {
 
     // PLA Tough+ (A10-xxx) - Material ID: GFA10
     {"A10-D0", "12105", "Gray"},
+    {"A10-K0", "12104", "Black"},
     {"A10-W0", "12107", "White"},
 
     // PLA Aero (A11-xxx) - Material ID: GFA11
@@ -167,7 +170,12 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     // PLA Translucent (A17-xxx) - Material ID: GFA17
     {"A17-A0", "13301", "Orange"},
     {"A17-B1", "13611", "Blue"},
+    {"A17-G0", "13510", "Light Jade"},
     {"A17-P0", "13710", "Purple"},
+    {"A17-P1", "13711", "Lavender"},
+    {"A17-R0", "13210", "Red"},
+    {"A17-R1", "13211", "Cherry Pink"},
+    {"A17-Y0", "13410", "Mellow Yellow"},
 
     // PLA Lite (A18-xxx) - Material ID: GFA18
     {"A18-B0", "16600", "Cyan"},
@@ -200,10 +208,14 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     // ASA (B01-xxx) - Material ID: GFB01
     {"B01-D0", "45102", "Gray"},
     {"B01-K0", "45101", "Black"},
+    {"B01-R0", "45200", "Red"},
     {"B01-W0", "45100", "White"},
 
     // ASA Aero (B02-xxx) - Material ID: GFB02
     {"B02-W0", "46100", "White"},
+
+    // ASA-CF (B51-xxx) - Material ID: GFB51
+    {"B51-K0", "46101", "Black"},
 
     // ABS-GF (B50-xxx) - Material ID: GFB50
     {"B50-A0", "41300", "Orange"},
@@ -216,7 +228,9 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"C00-W0", "60100", "White"},
 
     // PC FR (C01-xxx) - Material ID: GFC01
+    {"C01-D0", "63102", "Gray"},
     {"C01-K0", "63100", "Black"},
+    {"C01-W0", "63101", "White"},
 
     // PETG Translucent (G01-xxx) - Material ID: GFG01
     {"G01-A0", "32300", "Translucent Orange"},
@@ -246,6 +260,8 @@ static const BambuFilamentInfo bambu_filament_table[] = {
     {"G02-Y1", "33401", "Cream"},
 
     // PETG-CF (G50-xxx) - Material ID: GFG50
+    {"G50-D6", "31101", "Titan Gray"},
+    {"G50-G7", "31500", "Malachite Green"},
     {"G50-K0", "31100", "Black"},
     {"G50-P7", "31700", "Violet Purple"},
 
@@ -279,14 +295,88 @@ static const BambuFilamentInfo bambu_filament_table[] = {
 
 #define BAMBU_FILAMENT_TABLE_SIZE (sizeof(bambu_filament_table) / sizeof(bambu_filament_table[0]))
 
+// Normalize variant IDs that contain padded zeros, e.g.:
+// - "A00-K00" -> "A00-K0"
+// - "A00-G06" -> "A00-G6"
+static inline void
+bambu_normalize_variant_id(const char* variant_id, char* normalized, size_t normalized_size) {
+    if(normalized_size == 0) {
+        return;
+    }
+
+    if(variant_id == NULL) {
+        normalized[0] = '\0';
+        return;
+    }
+
+    size_t src_len = strlen(variant_id);
+    if(src_len >= normalized_size) {
+        src_len = normalized_size - 1;
+    }
+    memcpy(normalized, variant_id, src_len);
+    normalized[src_len] = '\0';
+
+    const char* dash = strchr(normalized, '-');
+    if(dash == NULL) {
+        return;
+    }
+
+    size_t dash_pos = (size_t)(dash - normalized);
+    if(dash_pos + 2 >= normalized_size || normalized[dash_pos + 1] == '\0') {
+        return;
+    }
+
+    char* suffix = &normalized[dash_pos + 2];
+    if(*suffix == '\0') {
+        return;
+    }
+
+    int digits_only = 1;
+    for(size_t i = 0; suffix[i] != '\0'; i++) {
+        if(suffix[i] < '0' || suffix[i] > '9') {
+            digits_only = 0;
+            break;
+        }
+    }
+    if(!digits_only) {
+        return;
+    }
+
+    size_t leading_zeros = 0;
+    while(suffix[leading_zeros] == '0' && suffix[leading_zeros + 1] != '\0') {
+        leading_zeros++;
+    }
+
+    if(leading_zeros > 0) {
+        size_t suffix_len = strlen(suffix);
+        memmove(suffix, suffix + leading_zeros, suffix_len - leading_zeros + 1);
+    }
+}
+
 // Lookup function: Find filament info by variant_id
 // Returns NULL if not found
 static inline const BambuFilamentInfo* bambu_lookup_filament(const char* variant_id) {
+    if(variant_id == NULL || variant_id[0] == '\0') {
+        return NULL;
+    }
+
     for(size_t i = 0; i < BAMBU_FILAMENT_TABLE_SIZE; i++) {
         if(strcmp(bambu_filament_table[i].variant_id, variant_id) == 0) {
             return &bambu_filament_table[i];
         }
     }
+
+    char normalized_variant_id[16];
+    bambu_normalize_variant_id(variant_id, normalized_variant_id, sizeof(normalized_variant_id));
+
+    if(strcmp(normalized_variant_id, variant_id) != 0) {
+        for(size_t i = 0; i < BAMBU_FILAMENT_TABLE_SIZE; i++) {
+            if(strcmp(bambu_filament_table[i].variant_id, normalized_variant_id) == 0) {
+                return &bambu_filament_table[i];
+            }
+        }
+    }
+
     return NULL;
 }
 

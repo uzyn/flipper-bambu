@@ -587,6 +587,17 @@ static bool test_filament_lookup(void) {
     TEST_ASSERT_EQ_STR("10204", info->filament_code, "filament_code for A00-R3");
     TEST_ASSERT_EQ_STR("Hot Pink", info->color_name, "color_name for A00-R3");
 
+    // Test padded variant IDs seen on some tags
+    info = bambu_lookup_filament("A00-K00");
+    TEST_ASSERT(info != NULL, "should normalize and find A00-K00");
+    TEST_ASSERT_EQ_STR("10101", info->filament_code, "filament_code for A00-K00");
+    TEST_ASSERT_EQ_STR("Black", info->color_name, "color_name for A00-K00");
+
+    info = bambu_lookup_filament("A00-G06");
+    TEST_ASSERT(info != NULL, "should normalize and find A00-G06");
+    TEST_ASSERT_EQ_STR("10501", info->filament_code, "filament_code for A00-G06");
+    TEST_ASSERT_EQ_STR("Bambu Green", info->color_name, "color_name for A00-G06");
+
     // Test unknown variant
     info = bambu_lookup_filament("UNKNOWN");
     TEST_ASSERT(info == NULL, "should not find UNKNOWN variant");
