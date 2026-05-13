@@ -2,6 +2,10 @@
 
 NFC parser for Bambu Lab filament spool RFID tags on [Flipper Zero](https://flipper.net).
 
+[![CI](https://github.com/uzyn/flipper-bambu/actions/workflows/ci.yml/badge.svg)](https://github.com/uzyn/flipper-bambu/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/uzyn/flipper-bambu)](https://github.com/uzyn/flipper-bambu/releases)
+[![Downloads](https://img.shields.io/github/downloads/uzyn/flipper-bambu/total)](https://github.com/uzyn/flipper-bambu/releases)
+
 <p>
   <img src="media/screenshot-1-main.png" alt="Screenshot showing filament color, code and production date" width="384" />
   <img src="media/screenshot-2-config.png" alt="Screenshot showing configurations" width="384" />
