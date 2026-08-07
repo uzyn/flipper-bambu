@@ -294,9 +294,10 @@ static bool bambu_read(Nfc* nfc, NfcDevice* device) {
     nfc_device_copy_data(device, NfcProtocolMfClassic, data);
 
     do {
-        MfClassicType type = MfClassicType1k;
-        MfClassicError error = mf_classic_poller_sync_detect_type(nfc, &type);
-        if(error != MfClassicErrorNone || type != MfClassicType1k) {
+        // The poller that produced this device already ran its own type
+        // detection, so re-probing the card here would only repeat two full
+        // NFC poller cycles to learn what data->type already holds.
+        if(data->type != MfClassicType1k) {
             break;
         }
 
@@ -306,12 +307,10 @@ static bool bambu_read(Nfc* nfc, NfcDevice* device) {
             break;
         }
 
-        data->type = type;
-
         MfClassicDeviceKeys keys = {};
         bambu_derive_keys_from_uid(uid, uid_len, &keys);
 
-        error = mf_classic_poller_sync_read(nfc, &keys, data);
+        MfClassicError error = mf_classic_poller_sync_read(nfc, &keys, data);
         if(error != MfClassicErrorNone && error != MfClassicErrorPartialRead) {
             break;
         }
