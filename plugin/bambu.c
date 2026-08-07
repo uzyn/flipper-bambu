@@ -294,9 +294,10 @@ static bool bambu_read(Nfc* nfc, NfcDevice* device) {
     nfc_device_copy_data(device, NfcProtocolMfClassic, data);
 
     do {
-        MfClassicType type = MfClassicType1k;
-        MfClassicError error = mf_classic_poller_sync_detect_type(nfc, &type);
-        if(error != MfClassicErrorNone || type != MfClassicType1k) {
+        // The poller that produced this device already ran its own type
+        // detection, so re-probing the card here would only repeat two full
+        // NFC poller cycles to learn what data->type already holds.
+        if(data->type != MfClassicType1k) {
             break;
         }
 
@@ -306,12 +307,21 @@ static bool bambu_read(Nfc* nfc, NfcDevice* device) {
             break;
         }
 
-        data->type = type;
+        // Card-presence fast-fail. mf_classic_poller_sync_read() blocks on
+        // FuriWaitForever and only completes once the card has been detected,
+        // so without a bounded probe first, a card lifted after detection
+        // hangs the NFC app thread. This is the same block-62 nonce probe
+        // detect_type used for its 1K check, but one poller cycle instead of
+        // two.
+        if(mf_classic_poller_sync_collect_nt(nfc, 62, MfClassicKeyTypeA, NULL) !=
+           MfClassicErrorNone) {
+            break;
+        }
 
         MfClassicDeviceKeys keys = {};
         bambu_derive_keys_from_uid(uid, uid_len, &keys);
 
-        error = mf_classic_poller_sync_read(nfc, &keys, data);
+        MfClassicError error = mf_classic_poller_sync_read(nfc, &keys, data);
         if(error != MfClassicErrorNone && error != MfClassicErrorPartialRead) {
             break;
         }

@@ -17,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The read path no longer re-detects the MIFARE Classic card type. The NFC app's
+  own poller has already determined the type (and the UID) before it hands the
+  device to a supported-card plugin, so `bambu_read` now gates on the type it is
+  given instead of calling `mf_classic_poller_sync_detect_type`. The card-presence
+  fast-fail that `detect_type` incidentally provided is retained as a single
+  `mf_classic_poller_sync_collect_nt` probe, so the read drops from three full NFC
+  poller cycles to two rather than one, removing one cycle of heap churn and RF
+  time from every scan.
+  ([#3](https://github.com/uzyn/flipper-bambu/issues/3))
 - The plugin is now built in release mode (`DEBUG=0 COMPACT=1`). `furi_assert`
   is compiled out, shrinking `.text` from 3,884 to 3,408 bytes and `.rodata`
   from 8,468 to 7,596 bytes. The `.fal` is 1,736 bytes smaller on disk, of which
