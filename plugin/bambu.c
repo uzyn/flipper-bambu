@@ -184,9 +184,16 @@ static void bambu_sha256_final(BambuSha256Context* context, uint8_t hash[32]) {
 // both call sites pass a compile-time-constant 16 (the master key) or 32 (the
 // PRK), and carrying it costs a third BambuSha256Context on a 5 KB thread stack.
 //
-// The guard is furi_check, not furi_assert: every shipped build defines NDEBUG,
-// where furi_assert compiles to nothing, and what it is guarding is a stack
+// The guard is furi_check, not furi_assert: furi_assert is gated on
+// `#ifdef FURI_DEBUG` (furi/core/check.h:77), which no shipped build defines, so
+// it would compile to nothing. (NDEBUG is not the switch — fbt defines it in
+// every configuration, DEBUG=1 included.) What is being guarded is a stack
 // buffer overflow inside key derivation.
+//
+// The guard is free as written: GCC's IPA constant propagation proves
+// key_len is 16 or 32 from the two call sites and deletes the comparison
+// entirely. It reappears the moment a call site the compiler cannot bound
+// is added, which is the case it exists for.
 static void bambu_hmac_sha256(
     const uint8_t* key,
     size_t key_len,
@@ -343,9 +350,15 @@ static bool bambu_read(Nfc* nfc, NfcDevice* device) {
         }
 
         // MfClassicDeviceKeys is 496 bytes — a tenth of the NFC app's 5 KB main
-        // thread stack, which this function runs on. Keep it on the heap, and
-        // hold it only for the read that needs it: there is no early exit
-        // between the malloc and the free, so no break below can leak it.
+        // thread stack, which this function runs on. mf_classic_poller_sync_read
+        // takes it by value (mf_classic_poller_sync.c:475 copies it into a 544-byte
+        // frame), so as a stack local it sat on that stack twice at once for the
+        // whole of that call. On the heap it is one copy, held only across the
+        // call that needs it.
+        //
+        // Invariant, enforced by nothing but this comment and the adjacency of the
+        // three lines below: no break or return may be inserted between the malloc
+        // and the free. One would leak 496 bytes silently.
         MfClassicDeviceKeys* keys = malloc(sizeof(MfClassicDeviceKeys));
         bambu_derive_keys_from_uid(uid, uid_len, keys);
         MfClassicError error = mf_classic_poller_sync_read(nfc, keys, data);

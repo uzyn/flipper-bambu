@@ -3,9 +3,10 @@ PLUGIN_DIR := plugin
 NFC_PLUGINS_DIR := $(FIRMWARE_DIR)/applications/main/nfc/plugins/supported_cards
 TEST_DIR := test
 
-# ufbt build path. The ufbt SDK is distributed prebuilt with -Os and NDEBUG,
-# i.e. it already is the DEBUG=0 COMPACT=1 configuration that `build` asks fbt
-# for; ufbt does not accept those flags on the command line.
+# ufbt build path. The ufbt SDK is distributed prebuilt with -Os and
+# -DFURI_NDEBUG (see $(UFBT_HOME)/current/sdk_headers/sdk.opts), i.e. it already
+# is the DEBUG=0 COMPACT=1 configuration that `build` asks fbt for; ufbt does
+# not accept those flags on the command line.
 UFBT_HOME ?= $(HOME)/.ufbt
 UFBT_PYTHON := $(UFBT_HOME)/toolchain/current/bin/python3
 UFBT_STORAGE := $(UFBT_HOME)/current/scripts/storage.py
@@ -16,10 +17,12 @@ FLIPPER_PORT ?=
 
 .PHONY: build clean copy-plugin test ufbt-build ufbt-deploy
 
-# DEBUG=0 COMPACT=1 is a release build: it defines NDEBUG, so `furi_assert`
-# compiles to nothing. Both build paths are release builds, so there is no
-# configuration in this repo where an assert survives. Use `furi_check` (or an
-# explicit `if`) for anything that has to hold in production.
+# DEBUG=0 COMPACT=1 is a release build: it defines FURI_NDEBUG, not FURI_DEBUG,
+# and `furi_assert` is gated on `#ifdef FURI_DEBUG` (furi/core/check.h:77), so it
+# compiles to nothing. (NDEBUG is not the switch — fbt defines NDEBUG in every
+# configuration, DEBUG=1 included.) Both build paths here are release builds, so
+# there is no configuration in this repo where an assert survives. Use
+# `furi_check` (or an explicit `if`) for anything that has to hold in production.
 build: copy-plugin
 	cd $(FIRMWARE_DIR) && ./fbt DEBUG=0 COMPACT=1 fap_bambu_parser
 	mkdir -p dist
