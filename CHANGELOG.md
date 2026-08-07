@@ -46,15 +46,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [RFID-Tag-Guide](https://github.com/Bambu-Research-Group/RFID-Tag-Guide)
   publishes that derivation alone, describing what it recovers as "all required
   A-Keys" — and key A on its own reads every block this plugin parses, so the
-  key B entries could not unlock anything key A could not. Taking the upstream
-  evidence at face value, the tag's real key B differs from the derived key A,
-  each of those 16 offers failed, and because a failed authentication halts the
-  tag the poller retried each one once per block in the sector: 64 failed
-  authentications and 64 card re-selections per scan, so the read path drops
-  from 80 authentications to 16. Were a tag's key B in fact equal to its key A,
-  the drop would instead be 32 to 16 with no failures involved. The read is
-  strictly cheaper either way and the parsed result is unchanged.
-  ([#3](https://github.com/uzyn/flipper-bambu/issues/3))
+  key B entries could not unlock anything key A could not. That guide's
+  `BambuLabRfid.md` also documents the trailer's key B as "always
+  `00 00 00 00 00 00` for Bambu tags", which the non-zero derived key never
+  matches, so each of those 16 offers failed; and because a failed
+  authentication halts the tag, the poller retried each one once per block in
+  the sector: 64 failed authentications and 64 card re-selections per scan, so
+  the read path drops from 80 authentications to 16. The parsed result is
+  unchanged. ([#3](https://github.com/uzyn/flipper-bambu/issues/3))
 
 ## [1.1.0] - 2026-05-13
 

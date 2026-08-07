@@ -267,10 +267,11 @@ static void bambu_derive_keys_from_uid(const uint8_t* uid, size_t uid_len, MfCla
         generated += chunk_len;
     }
 
-    // Key A only — do not restore the key B assignment. The HKDF context is
-    // "RFID-A" and upstream publishes no key B derivation, and the trailers'
-    // 87 87 87 access bits leave every block this plugin parses readable with
-    // key A, so key B entries buy nothing and cost an auth attempt per block.
+    // Key A only — do not restore the key B assignment. Bambu tags carry an
+    // all-zero key B (RFID-Tag-Guide, BambuLabRfid.md), so no derived key can
+    // match it; and the trailers' 87 87 87 access bits leave every block this
+    // plugin parses readable with key A, so any key B entry — derived, guessed
+    // or known — buys nothing and costs an auth attempt per block.
     for(size_t sector = 0; sector < sector_count; sector++) {
         const uint8_t* sector_key = &key_material[sector * key_size];
         memcpy(keys->key_a[sector].data, sector_key, key_size);
