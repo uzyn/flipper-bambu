@@ -26,6 +26,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   poller cycles to two rather than one, removing one cycle of heap churn and RF
   time from every scan.
   ([#3](https://github.com/uzyn/flipper-bambu/issues/3))
+- Peak stack use in the key-derivation path dropped from 1,624 to 880 bytes
+  (-46%). `bambu_read` runs on the NFC app's main thread, which has a 5 KB stack
+  (`applications/main/nfc/application.fam`: `stack_size=5 * 1024`), so the chain
+  `bambu_read` → `bambu_hmac_sha256` → `bambu_sha256_update`/`_final` →
+  `bambu_sha256_transform` was using about a third of it. `bambu_read` no longer
+  holds the 496-byte `MfClassicDeviceKeys` on the stack (768 → 272 bytes), and
+  `bambu_hmac_sha256` reuses one SHA-256 context for the inner and outer hashes
+  and one 64-byte pad buffer instead of separate `ipad`/`opad` (504 → 256 bytes).
+  The derived keys are bit-identical: verified against RFC 4231 vectors, against
+  an independent Python HKDF reference for every `test/data` fixture UID, and by
+  a differential test of the old and new code over ~237,000 input pairs.
+- **This trades stack for heap and does not reduce peak heap.** The
+  `MfClassicDeviceKeys` that used to live on the stack is now a 496-byte
+  `malloc`, held only across `mf_classic_poller_sync_read` and freed on the
+  single path out. It does not address the out-of-memory crash in
+  [#3](https://github.com/uzyn/flipper-bambu/issues/3), which is a heap problem.
+- `bambu_hmac_sha256` no longer supports keys longer than the 64-byte SHA-256
+  block size. Both call sites pass 16 (the master key) or 32 (the PRK), so the
+  RFC 2104 key-hashing branch was unreachable; dropping it removes a third
+  `BambuSha256Context`. The assumption is now enforced with `furi_check`, which
+  survives `NDEBUG`, rather than `furi_assert`, which does not.
 - The plugin is now built in release mode (`DEBUG=0 COMPACT=1`). `furi_assert`
   is compiled out, shrinking `.text` from 3,884 to 3,408 bytes and `.rodata`
   from 8,468 to 7,596 bytes. The `.fal` is 1,736 bytes smaller on disk, of which
