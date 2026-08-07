@@ -26,16 +26,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   poller cycles to two rather than one, removing one cycle of heap churn and RF
   time from every scan.
   ([#3](https://github.com/uzyn/flipper-bambu/issues/3))
+- Peak stack use in the key-derivation path dropped from 1,624 to 880 bytes
+  (-46%). `bambu_read` runs on the NFC app's main thread, which has a 5 KB stack
+  (`applications/main/nfc/application.fam`: `stack_size=5 * 1024`), so the chain
+  `bambu_read` → `bambu_hmac_sha256` → `bambu_sha256_update`/`_final` →
+  `bambu_sha256_transform` was using about a third of it. `bambu_read` no longer
+  holds the 496-byte `MfClassicDeviceKeys` on the stack (768 → 272 bytes), and
+  `bambu_hmac_sha256` reuses one SHA-256 context for the inner and outer hashes
+  and one 64-byte pad buffer instead of separate `ipad`/`opad` (504 → 256 bytes).
+  The derived keys are bit-identical: verified against RFC 4231 vectors, against
+  an independent Python HKDF reference for every `test/data` fixture UID, and by
+  a differential test of the old and new code over ~237,000 input pairs.
+  `mf_classic_poller_sync_read` takes `MfClassicDeviceKeys` **by value**
+  (`mf_classic_poller_sync.c:475`), copying it into its own 544-byte frame, so
+  as a stack local the same 496 bytes were resident on that 5 KB stack twice
+  concurrently for the whole of that call, on every read. This removes one of
+  the two copies; the firmware's is not reachable from here.
+- **This trades stack for heap and does not reduce peak heap.** The
+  `MfClassicDeviceKeys` that used to live on the stack is now a 496-byte
+  `malloc`, held only across `mf_classic_poller_sync_read` and freed on the
+  single path out — which is also precisely the window in which the poller's own
+  allocations peak. It does not address the out-of-memory crash in
+  [#3](https://github.com/uzyn/flipper-bambu/issues/3), which is a heap problem,
+  and it moves transient heap use slightly the wrong way.
+- `bambu_hmac_sha256` no longer supports keys longer than the 64-byte SHA-256
+  block size. Both call sites pass 16 (the master key) or 32 (the PRK), so the
+  RFC 2104 key-hashing branch was unreachable; dropping it removes a third
+  `BambuSha256Context`. The assumption is now enforced with `furi_check`, which
+  is unconditional, rather than `furi_assert`, which is compiled out of every
+  shipped build. The guard currently costs nothing: the compiler proves both
+  call sites pass 16 or 32 and deletes the comparison, and it reappears if a
+  call site it cannot bound is ever added.
 - The plugin is now built in release mode (`DEBUG=0 COMPACT=1`). `furi_assert`
   is compiled out, shrinking `.text` from 3,884 to 3,408 bytes and `.rodata`
   from 8,468 to 7,596 bytes. The `.fal` is 1,736 bytes smaller on disk, of which
   1,348 bytes (~1.3 KB) is resident RAM while the plugin is loaded — only the
   allocated sections stay mapped; the rest is relocation and symbol data that is
   not retained.
-- **For contributors:** because release builds define `NDEBUG`, `furi_assert` is
-  now a no-op in every shipped `.fal`. Any invariant that must hold in
-  production has to use `furi_check` or an explicit `if`, or the guard silently
-  disappears from the released artifact.
+- **For contributors:** `furi_assert` is a no-op in every shipped `.fal`. It is
+  gated on `#ifdef FURI_DEBUG` (`furi/core/check.h:77`), and `FURI_DEBUG` is
+  defined only by `DEBUG=1` builds, which neither build path here uses. Note
+  that `NDEBUG` is *not* the switch — fbt defines `NDEBUG` in every
+  configuration, `DEBUG=1` included, so its presence says nothing about whether
+  asserts survive. Any invariant that must hold in production has to use
+  `furi_check` or an explicit `if`, or the guard silently disappears from the
+  released artifact.
 
 ### Fixed
 

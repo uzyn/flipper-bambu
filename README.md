@@ -45,10 +45,13 @@ Watch the [demo video](https://www.youtube.com/watch?v=iJgRLGE2dqY) on YouTube.
 There are two build paths, and both produce the same release-mode
 `dist/bambu_parser.fal`.
 
-> **Note for contributors:** both paths are release builds (`NDEBUG` is
-> defined), so `furi_assert` compiles to nothing in every artifact this repo
-> ships. Use `furi_check`, or an explicit `if`, for any invariant that has to
-> hold in production — an assert will not survive into the released `.fal`.
+> **Note for contributors:** both paths are release builds, so `furi_assert`
+> compiles to nothing in every artifact this repo ships. It is gated on
+> `#ifdef FURI_DEBUG` (`furi/core/check.h:77`), and only `DEBUG=1` builds define
+> `FURI_DEBUG`. Do not read `NDEBUG` as the signal — fbt defines it in every
+> configuration, `DEBUG=1` included. Use `furi_check`, or an explicit `if`, for
+> any invariant that has to hold in production — an assert will not survive into
+> the released `.fal`.
 
 ### ufbt — fast, recommended
 
