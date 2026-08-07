@@ -39,6 +39,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `bambu_parse` no longer reports spool data from blocks that were never read.
+  It validated blocks 1, 2, 4 and 5 and then read blocks 6, 8, 10, 12 and 14
+  unconditionally, so a card whose first two sectors were recovered but whose
+  later sectors were not — a partial dictionary attack, or a saved dump whose
+  required *data* blocks are `??` — passed validation and rendered the unread
+  blocks as though they were real, printing `Nozzle: >= 0.00mm` and
+  `Spool Width: 0.00mm` next to a correct type, colour and weight, with a blank
+  production date. (`??` in the sector trailers is normal — every Flipper-saved
+  dump has it — and does not trigger the rejection.) The read path already
+  performed this check; `parse` now does too, and such cards fall through to the
+  NFC app's generic MIFARE Classic view instead. The check is skipped when
+  `block_read_mask` is entirely zero, which is how the firmware represents dumps
+  saved before `Data format version: 2` — those load with an empty mask whether
+  their data is complete or not, so enforcing it there would reject complete
+  saved dumps that parse correctly today. The cost of that exemption is that a
+  pre-v2 dump which is itself partial is still rendered with zeros; the mask
+  carries no information on those files, so there is nothing to gate on. That
+  residual case is tracked in
+  [#8](https://github.com/uzyn/flipper-bambu/issues/8).
 - Sectors are no longer authenticated with key B. `bambu_derive_keys_from_uid`
   wrote the derived key into both the key A and the key B slot, so the poller
   was offered 16 key A entries plus 16 byte-identical key B entries. Only key A
