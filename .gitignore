@@ -4,7 +4,10 @@ flipperzero-firmware/dist/
 flipperzero-firmware/toolchain/
 
 # ufbt build artifacts
-.vscode/
+# `ufbt` writes only this file; the rest of .vscode/ stays trackable so shared
+# editor settings are possible. (`ufbt vscode_dist` generates more, but nothing
+# in this repo invokes it.)
+.vscode/compile_commands.json
 
 # Distribution output
 dist/

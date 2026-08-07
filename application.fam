@@ -1,8 +1,16 @@
-# Manifest for the ufbt build path (`make ufbt`).
+# Manifest for the ufbt build path (`make ufbt-build` / `make ufbt-deploy`).
 #
 # The fbt path does not read this file: `make copy-plugin` injects an equivalent
 # App() entry into the firmware's own applications/main/nfc/application.fam.
-# Keep the two entries in sync.
+#
+# The two entries must agree on everything that ends up in the plugin's on-device
+# metadata or ABI — `appid`, `apptype`, `entry_point`, `targets`, `requires` and
+# `fap_version`. A one-sided change there ships different metadata depending on
+# which path built the artifact, and nothing in CI compares the two.
+#
+# `sources` must NOT match: each is relative to its own manifest's directory, so
+# it is "plugin/bambu.c" here and "plugins/supported_cards/bambu.c" in the
+# firmware tree.
 
 # Stub manifest for the parent NFC app. It is NOT built and NOT deployed.
 #

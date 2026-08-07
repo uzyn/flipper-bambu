@@ -8,7 +8,16 @@
  * copy-plugin` deliberately does not copy it into the firmware tree, so there
  * the firmware's own header is picked up instead.
  *
- * Refresh this file when bumping the firmware submodule.
+ * Refresh this file whenever the ufbt SDK moves to a new firmware API version
+ * (CI builds against the floating `release` channel, so that can happen with no
+ * change here), and whenever the firmware submodule is bumped. The ufbt path is
+ * the only consumer, so the SDK is the trigger that actually matters; the
+ * submodule is listed because it is what this copy is diffed against.
+ *
+ * Nothing catches drift automatically: NfcSupportedCardsPlugin is a struct this
+ * plugin exports an instance of, not a symbol it imports, so it never appears in
+ * api_symbols.csv and APPCHK cannot see a layout change. A reordered or extended
+ * struct upstream compiles clean here and misbehaves on device.
  */
 
 /**

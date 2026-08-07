@@ -19,8 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The plugin is now built in release mode (`DEBUG=0 COMPACT=1`). `furi_assert`
   is compiled out, shrinking `.text` from 3,884 to 3,408 bytes and `.rodata`
-  from 8,468 to 7,596 bytes — roughly 1.7 KB less RAM occupied while the plugin
-  is loaded.
+  from 8,468 to 7,596 bytes. The `.fal` is 1,736 bytes smaller on disk, of which
+  1,348 bytes (~1.3 KB) is resident RAM while the plugin is loaded — only the
+  allocated sections stay mapped; the rest is relocation and symbol data that is
+  not retained.
+- **For contributors:** because release builds define `NDEBUG`, `furi_assert` is
+  now a no-op in every shipped `.fal`. Any invariant that must hold in
+  production has to use `furi_check` or an explicit `if`, or the guard silently
+  disappears from the released artifact.
 
 ## [1.1.0] - 2026-05-13
 

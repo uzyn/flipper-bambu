@@ -16,6 +16,10 @@ FLIPPER_PORT ?=
 
 .PHONY: build clean copy-plugin test ufbt-build ufbt-deploy
 
+# DEBUG=0 COMPACT=1 is a release build: it defines NDEBUG, so `furi_assert`
+# compiles to nothing. Both build paths are release builds, so there is no
+# configuration in this repo where an assert survives. Use `furi_check` (or an
+# explicit `if`) for anything that has to hold in production.
 build: copy-plugin
 	cd $(FIRMWARE_DIR) && ./fbt DEBUG=0 COMPACT=1 fap_bambu_parser
 	mkdir -p dist
@@ -61,6 +65,14 @@ clean:
 	rm -f $(NFC_PLUGINS_DIR)/bambu_filaments.h
 	rm -f $(NFC_PLUGINS_DIR)/bambu_parser.h
 	rm -f $(TEST_DIR)/test_bambu
+	rm -f .vscode/compile_commands.json
+	@rmdir .vscode 2>/dev/null || true
+	@# ufbt keeps its object files under $(UFBT_HOME)/build, outside the repo.
+	@# Only clean it if an SDK is already unpacked, so `make clean` never
+	@# triggers an SDK download on a fresh checkout.
+	@if command -v ufbt >/dev/null 2>&1 && [ -f "$(UFBT_HOME)/current/ufbt_state.json" ]; then \
+		ufbt -c >/dev/null; \
+	fi
 
 test: $(TEST_DIR)/test_bambu
 	./$(TEST_DIR)/test_bambu

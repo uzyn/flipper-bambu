@@ -45,6 +45,11 @@ Watch the [demo video](https://www.youtube.com/watch?v=iJgRLGE2dqY) on YouTube.
 There are two build paths, and both produce the same release-mode
 `dist/bambu_parser.fal`.
 
+> **Note for contributors:** both paths are release builds (`NDEBUG` is
+> defined), so `furi_assert` compiles to nothing in every artifact this repo
+> ships. Use `furi_check`, or an explicit `if`, for any invariant that has to
+> hold in production — an assert will not survive into the released `.fal`.
+
 ### ufbt — fast, recommended
 
 Builds against the Flipper SDK that `ufbt` downloads for you. No firmware
