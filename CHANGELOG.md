@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `make ufbt-build` produces `dist/bambu_parser.fal` against the downloaded
   Flipper SDK, with no firmware submodule and no firmware toolchain, and
   `make ufbt-deploy` writes it straight to a connected Flipper Zero. CI now
-  builds both paths.
+  builds both paths and fails if they ship different app metadata.
 
 ### Changed
 

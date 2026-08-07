@@ -53,6 +53,11 @@ ufbt-build:
 	ufbt
 	@echo "Plugin built: dist/bambu_parser.fal"
 
+# Uses the SDK's own storage.py rather than `ufbt launch` because ufbt only
+# builds a launch target for FlipperAppType.EXTERNAL apps (SDK
+# scripts/ufbt/SConstruct:291); this app is a PLUGIN, so that target errors out
+# and APPID= does not help. storage.py is a private-ish interface that could
+# move — the failure mode is a loud "No such file" in a dev-only target.
 ufbt-deploy: ufbt-build
 	$(UFBT_PYTHON) $(UFBT_STORAGE) $(if $(FLIPPER_PORT),-p $(FLIPPER_PORT)) \
 		send dist/bambu_parser.fal $(FLIPPER_PLUGIN_PATH)
@@ -69,7 +74,11 @@ clean:
 	@rmdir .vscode 2>/dev/null || true
 	@# ufbt keeps its object files under $(UFBT_HOME)/build, outside the repo.
 	@# Only clean it if an SDK is already unpacked, so `make clean` never
-	@# triggers an SDK download on a fresh checkout.
+	@# triggers an SDK download on a fresh checkout. It can still fetch the ARM
+	@# toolchain, though: `ufbt -c` sources the SDK's fbtenv.sh, which downloads
+	@# and unpacks it whenever $(UFBT_HOME)/toolchain/<arch>-<os> is missing, has
+	@# no VERSION file, or holds a version the SDK does not want. One-off, but
+	@# not instant.
 	@if command -v ufbt >/dev/null 2>&1 && [ -f "$(UFBT_HOME)/current/ufbt_state.json" ]; then \
 		ufbt -c >/dev/null; \
 	fi

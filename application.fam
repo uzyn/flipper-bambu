@@ -6,7 +6,12 @@
 # The two entries must agree on everything that ends up in the plugin's on-device
 # metadata or ABI — `appid`, `apptype`, `entry_point`, `targets`, `requires` and
 # `fap_version`. A one-sided change there ships different metadata depending on
-# which path built the artifact, and nothing in CI compares the two.
+# which path built the artifact. CI's `Manifest Agreement` job catches part of
+# that: it compares the `.fapmeta` section of the two built artifacts, which
+# carries `targets`, `fap_version`, `stack_size`, `name` and `fap_icon`. `appid`,
+# `apptype`, `entry_point` and `requires` are not in `.fapmeta` and are not
+# compared — most ways of breaking those fail the build outright, but check both
+# files by hand when editing either.
 #
 # `sources` must NOT match: each is relative to its own manifest's directory, so
 # it is "plugin/bambu.c" here and "plugins/supported_cards/bambu.c" in the
