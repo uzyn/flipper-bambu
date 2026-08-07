@@ -74,6 +74,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `bambu_tag_is_valid` now rejects a card whose sectors 2 and 3 are entirely
+  zero, closing the residual case the `block_read_mask` exemption below leaves
+  open. When a dump saved before `Data format version: 2` is itself partial the
+  mask carries no read state to gate on, so the only signal left is the content:
+  every non-trailer block of those two sectors — 8, 9, 10, 12, 13 and 14 — reads
+  back as sixteen zero bytes, which is what a zero-initialised block buffer looks
+  like when nothing overwrote it. All six must be zero at once, including 9 and
+  13, which the plugin never renders. Requiring all six keeps this a statement
+  about the two sectors being absent rather than a plausible-range check on a
+  single field, which would risk rejecting nozzle or spool variants there are no
+  fixtures for; the cost is that a dump missing only one of the two sectors is
+  still rendered with zeros for that sector. Rejected cards fall through to the
+  NFC app's generic MIFARE Classic view, as with the mask check below.
+  **This is a heuristic.** It infers the discarded read state from content
+  rather than recovering it, and there are no real pre-v2 partial dumps to
+  validate it against — every fixture in `test/data/` is
+  `Data format version: 2`, so every partial case under test is synthesised. A
+  genuine tag that happened to carry zeros across all six blocks would be
+  rejected. That is considered acceptable because all six known-good fixtures
+  carry a high-entropy per-spool value in block 9 and a batch string in block 13,
+  and because on the live read path the four blocks the plugin renders from those
+  sectors are confirmed read before this runs — so firing there would mean the
+  card itself returned zeros for all of them. Rendering only the fields actually
+  read, instead of rejecting the card outright, remains open on
+  [#8](https://github.com/uzyn/flipper-bambu/issues/8).
 - `bambu_parse` no longer reports spool data from blocks that were never read.
   It validated blocks 1, 2, 4 and 5 and then read blocks 6, 8, 10, 12 and 14
   unconditionally, so a card whose first two sectors were recovered but whose

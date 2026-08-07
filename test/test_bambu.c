@@ -542,6 +542,118 @@ static bool test_rejection_wrong_card_type(void) {
     return true;
 }
 
+// Sector 0 and sector 1 content that passes every other check in
+// bambu_tag_is_valid, so the spec-block test is the only thing under test.
+// Block 6 is populated deliberately: a dump that reaches bambu_tag_is_valid at
+// all has already had sector 1 accepted via blocks 4 and 5.
+static void make_valid_bambu_tag(MfClassicData* data) {
+    memset(data, 0, sizeof(*data));
+    data->type = MfClassicType1k;
+
+    memcpy(data->block[BLOCK_MATERIAL_IDS].data, "A00-R3\x00\x00GFA00\x00", 14);
+    memcpy(data->block[BLOCK_FILAMENT_TYPE].data, "PLA\x00", 4);
+    memcpy(data->block[BLOCK_DETAILED_TYPE].data, "PLA Basic\x00", 10);
+
+    float diameter = 1.75f;
+    memcpy(&data->block[BLOCK_COLOR_WEIGHT].data[8], &diameter, sizeof(float));
+
+    uint8_t block6[16] = {0x37, 0x00, 0x08, 0x00, 0, 0, 0, 0, 0xE6, 0x00, 0xBE, 0x00};
+    memcpy(data->block[BLOCK_TEMPERATURES].data, block6, 16);
+}
+
+// Sector 2 and sector 3 content, shaped like a real spool: nozzle 0.2mm,
+// an opaque per-spool value in block 9, spool width, production date and batch,
+// filament length.
+static void populate_spec_blocks(MfClassicData* data) {
+    float nozzle = 0.2f;
+    memcpy(&data->block[BLOCK_NOZZLE].data[12], &nozzle, sizeof(float));
+    memset(data->block[BLOCK_SPOOL_EXTRA].data, 0xA5, 16);
+    data->block[BLOCK_SPOOL_WIDTH].data[4] = 0x8C;
+    data->block[BLOCK_SPOOL_WIDTH].data[5] = 0x0C;
+    memcpy(data->block[BLOCK_PRODUCTION_DATE].data, "2025_07_21_14_17", 16);
+    memcpy(data->block[BLOCK_PROD_EXTRA].data, "25_07_21_14", 11);
+    data->block[BLOCK_FILAMENT_LENGTH].data[4] = 0x4A;
+    data->block[BLOCK_FILAMENT_LENGTH].data[5] = 0x01;
+}
+
+static void zero_spec_blocks(MfClassicData* data) {
+    for (size_t i = 0; i < BAMBU_NUM_SPEC_BLOCKS; i++) {
+        memset(data->block[BAMBU_SPEC_BLOCKS[i]].data, 0, 16);
+    }
+}
+
+// The case from issue #8: a dump whose sectors 0-1 loaded but whose sectors 2-3
+// never did, so every field the plugin renders from them is a zero it would
+// otherwise present as genuine spool data.
+static bool test_rejection_zeroed_spec_blocks(void) {
+    MfClassicData data;
+    make_valid_bambu_tag(&data);
+    populate_spec_blocks(&data);
+    TEST_ASSERT(bambu_tag_is_valid(&data), "baseline tag should be accepted");
+
+    zero_spec_blocks(&data);
+    TEST_ASSERT(!bambu_tag_is_valid(&data), "should reject tag with sectors 2-3 all zero");
+    return true;
+}
+
+// The predicate is deliberately narrow: it fires only when sectors 2 and 3 are
+// BOTH entirely absent. Anything less is left alone, because rejecting a tag
+// that carries real data is a worse failure than rendering one zero field.
+static bool test_accept_partially_zeroed_spec_blocks(void) {
+    MfClassicData data;
+
+    make_valid_bambu_tag(&data);
+    populate_spec_blocks(&data);
+    memset(data.block[BLOCK_NOZZLE].data, 0, 16);
+    memset(data.block[BLOCK_SPOOL_EXTRA].data, 0, 16);
+    memset(data.block[BLOCK_SPOOL_WIDTH].data, 0, 16);
+    TEST_ASSERT(bambu_tag_is_valid(&data), "should accept tag with only sector 2 zeroed");
+
+    make_valid_bambu_tag(&data);
+    populate_spec_blocks(&data);
+    memset(data.block[BLOCK_PRODUCTION_DATE].data, 0, 16);
+    memset(data.block[BLOCK_PROD_EXTRA].data, 0, 16);
+    memset(data.block[BLOCK_FILAMENT_LENGTH].data, 0, 16);
+    TEST_ASSERT(bambu_tag_is_valid(&data), "should accept tag with only sector 3 zeroed");
+
+    // A single non-zero byte anywhere in sectors 2-3 keeps the tag.
+    make_valid_bambu_tag(&data);
+    zero_spec_blocks(&data);
+    data.block[BLOCK_SPOOL_EXTRA].data[15] = 0x01;
+    TEST_ASSERT(bambu_tag_is_valid(&data), "should accept tag with one non-zero spec byte");
+
+    return true;
+}
+
+// Every real fixture must still be accepted untouched, and must flip to
+// rejected once its sectors 2-3 are zeroed - the mutation is what a partial
+// dump of that same spool would have looked like.
+static bool test_real_fixtures_vs_zeroed_spec_blocks(const char* test_dir) {
+    for (size_t i = 0; i < NUM_EXPECTED_VALUES; i++) {
+        char path[512];
+        snprintf(path, sizeof(path), "%s/%s", test_dir, expected_values[i].filename);
+
+        MfClassicData data;
+        if (!load_nfc_file(path, &data)) {
+            printf("  FAIL: Could not load file %s\n", path);
+            return false;
+        }
+
+        if (!bambu_tag_is_valid(&data)) {
+            printf("  FAIL: %s should still be accepted\n", expected_values[i].filename);
+            return false;
+        }
+
+        zero_spec_blocks(&data);
+        if (bambu_tag_is_valid(&data)) {
+            printf("  FAIL: %s with sectors 2-3 zeroed should be rejected\n",
+                   expected_values[i].filename);
+            return false;
+        }
+    }
+    return true;
+}
+
 // Test helper functions from production code
 static bool test_read_le16(void) {
     uint8_t data[] = {0xE8, 0x03};  // 1000 in little-endian
@@ -653,6 +765,8 @@ int main(int argc, char* argv[]) {
     run_test("reject_invalid_diameter", test_rejection_invalid_diameter());
     run_test("reject_non_printable_detailed_type", test_rejection_non_printable_detailed_type());
     run_test("reject_wrong_card_type", test_rejection_wrong_card_type());
+    run_test("reject_zeroed_spec_blocks", test_rejection_zeroed_spec_blocks());
+    run_test("accept_partially_zeroed_spec_blocks", test_accept_partially_zeroed_spec_blocks());
     printf("\n");
 
     // File parsing tests (full integration with production code)
@@ -663,6 +777,8 @@ int main(int argc, char* argv[]) {
         snprintf(test_name, sizeof(test_name), "parse_%s", expected_values[i].filename);
         run_test(test_name, test_parse_file(test_data_dir, &expected_values[i]));
     }
+    run_test("real_fixtures_vs_zeroed_spec_blocks",
+             test_real_fixtures_vs_zeroed_spec_blocks(test_data_dir));
     printf("\n");
 
     // Summary
