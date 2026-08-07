@@ -15,18 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `make ufbt-deploy` writes it straight to a connected Flipper Zero. CI now
   builds both paths and fails if they ship different app metadata.
 
-### Fixed
-
-- Sectors are no longer authenticated with key B. `bambu_derive_keys_from_uid`
-  wrote the derived key into both the key A and key B slots, but the HKDF
-  context is `"RFID-A"` and only key A is derivable, so every key B
-  authentication was guaranteed to fail. Because a failed authentication halts
-  the tag and the poller retries once per block in the sector, those 16 key B
-  offers cost 64 failed authentications and 64 card re-selections per scan. Key
-  A alone reads every block the plugin parses, so the read path now performs 16
-  authentications instead of 80.
-  ([#3](https://github.com/uzyn/flipper-bambu/issues/3))
-
 ### Changed
 
 - The read path no longer re-detects the MIFARE Classic card type. The NFC app's
@@ -48,6 +36,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now a no-op in every shipped `.fal`. Any invariant that must hold in
   production has to use `furi_check` or an explicit `if`, or the guard silently
   disappears from the released artifact.
+
+### Fixed
+
+- Sectors are no longer authenticated with key B. `bambu_derive_keys_from_uid`
+  wrote the derived key into both the key A and the key B slot, so the poller
+  was offered 16 key A entries plus 16 byte-identical key B entries. Only key A
+  is derivable — the HKDF context is `"RFID-A"`, and upstream
+  [RFID-Tag-Guide](https://github.com/Bambu-Research-Group/RFID-Tag-Guide)
+  publishes that derivation alone, describing what it recovers as "all required
+  A-Keys" — and key A on its own reads every block this plugin parses, so the
+  key B entries could not unlock anything key A could not. Taking the upstream
+  evidence at face value, the tag's real key B differs from the derived key A,
+  each of those 16 offers failed, and because a failed authentication halts the
+  tag the poller retried each one once per block in the sector: 64 failed
+  authentications and 64 card re-selections per scan, so the read path drops
+  from 80 authentications to 16. Were a tag's key B in fact equal to its key A,
+  the drop would instead be 32 to 16 with no failures involved. The read is
+  strictly cheaper either way and the parsed result is unchanged.
+  ([#3](https://github.com/uzyn/flipper-bambu/issues/3))
 
 ## [1.1.0] - 2026-05-13
 
