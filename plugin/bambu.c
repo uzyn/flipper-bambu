@@ -267,12 +267,17 @@ static void bambu_derive_keys_from_uid(const uint8_t* uid, size_t uid_len, MfCla
         generated += chunk_len;
     }
 
+    // Key A only. The HKDF context is "RFID-A", so the derivation yields key A
+    // and nothing else; there is no published derivation for key B. The sector
+    // trailers carry access bytes 87 87 87, granting the data blocks 010 (read
+    // with either key) and the trailer 101 (key B never readable), so key A
+    // alone reads every block this plugin parses. Populating key_b would only
+    // add authentications that are guaranteed to fail, and a failed auth halts
+    // the tag, forcing a re-select before the next attempt.
     for(size_t sector = 0; sector < sector_count; sector++) {
         const uint8_t* sector_key = &key_material[sector * key_size];
         memcpy(keys->key_a[sector].data, sector_key, key_size);
         FURI_BIT_SET(keys->key_a_mask, sector);
-        memcpy(keys->key_b[sector].data, sector_key, key_size);
-        FURI_BIT_SET(keys->key_b_mask, sector);
     }
 }
 

@@ -15,6 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `make ufbt-deploy` writes it straight to a connected Flipper Zero. CI now
   builds both paths and fails if they ship different app metadata.
 
+### Fixed
+
+- Sectors are no longer authenticated with key B. `bambu_derive_keys_from_uid`
+  wrote the derived key into both the key A and key B slots, but the HKDF
+  context is `"RFID-A"` and only key A is derivable, so every key B
+  authentication was guaranteed to fail. Because a failed authentication halts
+  the tag and the poller retries once per block in the sector, those 16 key B
+  offers cost 64 failed authentications and 64 card re-selections per scan. Key
+  A alone reads every block the plugin parses, so the read path now performs 16
+  authentications instead of 80.
+  ([#3](https://github.com/uzyn/flipper-bambu/issues/3))
+
 ### Changed
 
 - The read path no longer re-detects the MIFARE Classic card type. The NFC app's
