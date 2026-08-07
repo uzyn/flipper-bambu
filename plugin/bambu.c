@@ -288,6 +288,15 @@ static bool bambu_has_required_blocks(const MfClassicData* data) {
     return true;
 }
 
+static bool bambu_block_read_mask_is_populated(const MfClassicData* data) {
+    for(size_t i = 0; i < COUNT_OF(data->block_read_mask); i++) {
+        if(data->block_read_mask[i] != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static bool bambu_read(Nfc* nfc, NfcDevice* device) {
     furi_assert(nfc);
     furi_assert(device);
@@ -354,6 +363,20 @@ static bool bambu_parse(const NfcDevice* device, FuriString* parsed_data) {
 
     // Quick type check
     if(data->type != MfClassicType1k) {
+        return false;
+    }
+
+    // Reject a card whose required blocks were never recovered, so a partial
+    // read cannot present zero-filled blocks as genuine spool data.
+    //
+    // The mask test is load-bearing, not redundant: mf_classic_load() zeroes
+    // block_read_mask wholesale for any dump saved without
+    // "Data format version: 2" (firmware mf_classic.c), even though every block
+    // loaded fine. On those files an all-zero mask means "this file predates
+    // the mask", not "nothing was read", so checking the required blocks
+    // unconditionally would reject older saved dumps that parse correctly
+    // today. Only trust the mask when it carries information.
+    if(bambu_block_read_mask_is_populated(data) && !bambu_has_required_blocks(data)) {
         return false;
     }
 
