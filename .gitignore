@@ -3,6 +3,9 @@ flipperzero-firmware/build/
 flipperzero-firmware/dist/
 flipperzero-firmware/toolchain/
 
+# ufbt build artifacts
+.vscode/
+
 # Distribution output
 dist/
 

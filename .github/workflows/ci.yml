@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, 'epic/**']
   pull_request:
-    branches: [main, master]
+    branches: [main, master, 'epic/**']
   workflow_dispatch:
 
 jobs:
@@ -20,8 +20,31 @@ jobs:
       - name: Run parser validation tests
         run: make test
 
+  build-ufbt:
+    name: Build Plugin (ufbt)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: test  # Only build if tests pass
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Bambu parser plugin with ufbt
+        id: build
+        uses: flipperdevices/flipperzero-ufbt-action@v0.1.4
+        with:
+          sdk-channel: release
+
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bambu_parser-ufbt
+          path: ${{ steps.build.outputs.fap-dir }}/bambu_parser.fal
+          retention-days: 30
+
   build:
-    name: Build Plugin
+    name: Build Plugin (fbt)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: test  # Only build if tests pass

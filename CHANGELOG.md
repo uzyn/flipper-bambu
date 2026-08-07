@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Second build path using [ufbt](https://github.com/flipperdevices/flipperzero-ufbt).
+  `make ufbt-build` produces `dist/bambu_parser.fal` against the downloaded
+  Flipper SDK, with no firmware submodule and no firmware toolchain, and
+  `make ufbt-deploy` writes it straight to a connected Flipper Zero. CI now
+  builds both paths.
+
+### Changed
+
+- The plugin is now built in release mode (`DEBUG=0 COMPACT=1`). `furi_assert`
+  is compiled out, shrinking `.text` from 3,884 to 3,408 bytes and `.rodata`
+  from 8,468 to 7,596 bytes — roughly 1.7 KB less RAM occupied while the plugin
+  is loaded.
+
 ## [1.1.0] - 2026-05-13
 
 ### Added
@@ -37,5 +54,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release: Bambu Lab filament NFC parser plugin for Flipper Zero.
 
+[Unreleased]: https://github.com/uzyn/flipper-bambu/compare/1.1.0...HEAD
 [1.1.0]: https://github.com/uzyn/flipper-bambu/compare/1.0.0...1.1.0
 [1.0.0]: https://github.com/uzyn/flipper-bambu/releases/tag/1.0.0
