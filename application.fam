@@ -1,0 +1,46 @@
+# Manifest for the ufbt build path (`make ufbt-build` / `make ufbt-deploy`).
+#
+# The fbt path does not read this file: `make copy-plugin` injects an equivalent
+# App() entry into the firmware's own applications/main/nfc/application.fam.
+#
+# The two entries must agree on everything that ends up in the plugin's on-device
+# metadata or ABI — `appid`, `apptype`, `entry_point`, `targets`, `requires` and
+# `fap_version`. A one-sided change there ships different metadata depending on
+# which path built the artifact. CI's `Manifest Agreement` job catches part of
+# that: it compares the `.fapmeta` section of the two built artifacts, which
+# carries `targets`, `fap_version`, `stack_size`, `name` and `fap_icon`. `appid`,
+# `apptype`, `entry_point` and `requires` are not in `.fapmeta` and are not
+# compared — most ways of breaking those fail the build outright, but check both
+# files by hand when editing either.
+#
+# `sources` must NOT match: each is relative to its own manifest's directory, so
+# it is "plugin/bambu.c" here and "plugins/supported_cards/bambu.c" in the
+# firmware tree.
+
+# Stub manifest for the parent NFC app. It is NOT built and NOT deployed.
+#
+# ufbt has no firmware tree, so the PLUGIN entry below cannot resolve its
+# `requires=["nfc"]` parent: fbt_extapps.py looks the id up via AppManager.get(),
+# which raises "Missing application manifest for 'nfc'" rather than returning
+# None. Declaring the parent here satisfies that lookup. apptype=APP (rather
+# than PLUGIN/EXTERNAL/MENUEXTERNAL) keeps it out of ufbt's external-app build
+# list, so ufbt registers it as a parent but never tries to build it.
+#
+# Removing this entry breaks `ufbt`. Dropping `requires` instead does not work
+# either — ufbt rejects a PLUGIN with no `requires`.
+App(
+    appid="nfc",
+    name="NFC",
+    apptype=FlipperAppType.APP,
+    targets=["f7"],
+)
+
+App(
+    appid="bambu_parser",
+    apptype=FlipperAppType.PLUGIN,
+    entry_point="bambu_plugin_ep",
+    targets=["f7"],
+    requires=["nfc"],
+    sources=["plugin/bambu.c"],
+    fap_version="1.1",
+)
