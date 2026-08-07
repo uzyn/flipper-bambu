@@ -307,6 +307,17 @@ static bool bambu_read(Nfc* nfc, NfcDevice* device) {
             break;
         }
 
+        // Card-presence fast-fail. mf_classic_poller_sync_read() blocks on
+        // FuriWaitForever and only completes once the card has been detected,
+        // so without a bounded probe first, a card lifted after detection
+        // hangs the NFC app thread. This is the same block-62 nonce probe
+        // detect_type used for its 1K check, but one poller cycle instead of
+        // two.
+        if(mf_classic_poller_sync_collect_nt(nfc, 62, MfClassicKeyTypeA, NULL) !=
+           MfClassicErrorNone) {
+            break;
+        }
+
         MfClassicDeviceKeys keys = {};
         bambu_derive_keys_from_uid(uid, uid_len, &keys);
 
