@@ -27,7 +27,7 @@ Watch the [demo video](https://www.youtube.com/watch?v=iJgRLGE2dqY) on YouTube.
 
 1. Download `bambu_parser.fal` from the [Releases](https://github.com/uzyn/flipper-bambu/releases) page
 2. Copy to Flipper Zero SD card: `/ext/apps_data/nfc/plugins/`. You can write to the card directly or via [qFlipper](https://flipper.net/pages/downloads)
-3. Restart the NFC app.
+3. Disconnect USB (see the note under [Usage](#usage)), then restart the NFC app.
 
 ## Usage
 
@@ -39,6 +39,8 @@ Watch the [demo video](https://www.youtube.com/watch?v=iJgRLGE2dqY) on YouTube.
    - Production date
    - Temperature settings (hotend min/max, drying temp/hours)
    - Physical properties (weight, diameter, spool width, length)
+
+> **Unplug USB before scanning.** With a USB host session attached — qFlipper especially — the NFC app can exhaust the heap mid-read and the Flipper reboots with "Out of memory". [See #3](https://github.com/uzyn/flipper-bambu/issues/3).   
 
 ## Build from Source
 
