@@ -42,13 +42,60 @@ Watch the [demo video](https://www.youtube.com/watch?v=iJgRLGE2dqY) on YouTube.
 
 ## Build from Source
 
-1. Clone the repository:
+There are two build paths, and both produce the same release-mode
+`dist/bambu_parser.fal`.
+
+> **Note for contributors:** both paths are release builds, so `furi_assert`
+> compiles to nothing in every artifact this repo ships. It is gated on
+> `#ifdef FURI_DEBUG` (`furi/core/check.h:77`), and only `DEBUG=1` builds define
+> `FURI_DEBUG`. Do not read `NDEBUG` as the signal — fbt defines it in every
+> configuration, `DEBUG=1` included. Use `furi_check`, or an explicit `if`, for
+> any invariant that has to hold in production — an assert will not survive into
+> the released `.fal`.
+
+### ufbt — fast, recommended
+
+Builds against the Flipper SDK that `ufbt` downloads for you. No firmware
+submodule, no firmware toolchain, a build takes seconds. Use this for
+day-to-day work on the plugin.
+
+1. Clone the repository (no `--recursive` needed) and install
+   [ufbt](https://github.com/flipperdevices/flipperzero-ufbt):
+   ```bash
+   git clone https://github.com/uzyn/flipper-bambu.git
+   cd flipper-bambu
+   pip install --upgrade ufbt
+   ```
+
+2. Build the plugin:
+   ```bash
+   make ufbt-build
+   ```
+   Output: `dist/bambu_parser.fal`
+
+3. Deploy straight to a connected Flipper Zero:
+   ```bash
+   make ufbt-deploy
+   ```
+   This writes `/ext/apps_data/nfc/plugins/bambu_parser.fal`. Restart the NFC
+   app to load it. If you have more than one serial device attached, pass the
+   port explicitly:
+   `make ufbt-deploy FLIPPER_PORT=/dev/cu.usbmodemflip_XXXXXXXX`
+
+### fbt — full firmware tree
+
+Builds inside a checkout of `flipperzero-firmware` (a ~500 MB submodule plus
+its toolchain). Use this when you need to change firmware code alongside the
+plugin, or to reproduce a release build exactly. This is what CI uses to
+produce the released artifact.
+
+1. Clone the repository with submodules:
    ```bash
    git clone --recursive https://github.com/uzyn/flipper-bambu.git
    cd flipper-bambu
    ```
 
-   If you have cloned the repository, run `git submodule update --init --recursive` instead.
+   If you have already cloned the repository, run `git submodule update --init --recursive` instead.
 
 2. Build the plugin:
    ```bash

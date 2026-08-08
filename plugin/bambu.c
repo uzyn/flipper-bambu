@@ -177,41 +177,56 @@ static void bambu_sha256_final(BambuSha256Context* context, uint8_t hash[32]) {
     }
 }
 
+#define BAMBU_SHA256_BLOCK_SIZE 64
+
+// HMAC-SHA256 restricted to keys no longer than the SHA-256 block size. RFC 2104
+// hashes an oversized key down to 32 bytes first; that branch is omitted because
+// both call sites pass a compile-time-constant 16 (the master key) or 32 (the
+// PRK), and carrying it costs a third BambuSha256Context on a 5 KB thread stack.
+//
+// The guard is furi_check, not furi_assert: furi_assert is gated on
+// `#ifdef FURI_DEBUG` (furi/core/check.h:77), which no shipped build defines, so
+// it would compile to nothing. (NDEBUG is not the switch — fbt defines it in
+// every configuration, DEBUG=1 included.) What is being guarded is a stack
+// buffer overflow inside key derivation.
+//
+// The guard is free as written: GCC's IPA constant propagation proves
+// key_len is 16 or 32 from the two call sites and deletes the comparison
+// entirely. It reappears the moment a call site the compiler cannot bound
+// is added, which is the case it exists for.
 static void bambu_hmac_sha256(
     const uint8_t* key,
     size_t key_len,
     const uint8_t* data,
     size_t data_len,
     uint8_t out[32]) {
-    uint8_t key_block[64] = {0};
-    if(key_len > sizeof(key_block)) {
-        BambuSha256Context key_hash_ctx;
-        bambu_sha256_init(&key_hash_ctx);
-        bambu_sha256_update(&key_hash_ctx, key, key_len);
-        bambu_sha256_final(&key_hash_ctx, key_block);
-    } else {
-        memcpy(key_block, key, key_len);
-    }
+    furi_check(key_len <= BAMBU_SHA256_BLOCK_SIZE);
 
-    uint8_t ipad[64];
-    uint8_t opad[64];
-    for(size_t i = 0; i < 64; i++) {
-        ipad[i] = key_block[i] ^ 0x36;
-        opad[i] = key_block[i] ^ 0x5C;
-    }
-
+    uint8_t pad[BAMBU_SHA256_BLOCK_SIZE];
     uint8_t inner_hash[32];
-    BambuSha256Context inner_ctx;
-    bambu_sha256_init(&inner_ctx);
-    bambu_sha256_update(&inner_ctx, ipad, sizeof(ipad));
-    bambu_sha256_update(&inner_ctx, data, data_len);
-    bambu_sha256_final(&inner_ctx, inner_hash);
+    BambuSha256Context context;
 
-    BambuSha256Context outer_ctx;
-    bambu_sha256_init(&outer_ctx);
-    bambu_sha256_update(&outer_ctx, opad, sizeof(opad));
-    bambu_sha256_update(&outer_ctx, inner_hash, sizeof(inner_hash));
-    bambu_sha256_final(&outer_ctx, out);
+    // HMAC zero-pads the key out to the block size, so every byte past key_len
+    // is the pad constant unchanged.
+    memset(pad, 0x36, sizeof(pad));
+    for(size_t i = 0; i < key_len; i++) {
+        pad[i] ^= key[i];
+    }
+
+    bambu_sha256_init(&context);
+    bambu_sha256_update(&context, pad, sizeof(pad));
+    bambu_sha256_update(&context, data, data_len);
+    bambu_sha256_final(&context, inner_hash);
+
+    memset(pad, 0x5C, sizeof(pad));
+    for(size_t i = 0; i < key_len; i++) {
+        pad[i] ^= key[i];
+    }
+
+    bambu_sha256_init(&context);
+    bambu_sha256_update(&context, pad, sizeof(pad));
+    bambu_sha256_update(&context, inner_hash, sizeof(inner_hash));
+    bambu_sha256_final(&context, out);
 }
 
 static void bambu_derive_keys_from_uid(const uint8_t* uid, size_t uid_len, MfClassicDeviceKeys* keys) {
@@ -236,6 +251,10 @@ static void bambu_derive_keys_from_uid(const uint8_t* uid, size_t uid_len, MfCla
     static const uint8_t hkdf_context[] = {'R', 'F', 'I', 'D', '-', 'A', '\0'};
     static const size_t sector_count = 16;
     static const size_t key_size = sizeof(MfClassicKey);
+
+    // Fully initialises *keys, so callers may hand it uninitialised storage.
+    memset(keys, 0, sizeof(*keys));
+
     uint8_t prk[32];
     bambu_hmac_sha256(master_key, sizeof(master_key), uid, uid_len, prk);
 
@@ -267,12 +286,15 @@ static void bambu_derive_keys_from_uid(const uint8_t* uid, size_t uid_len, MfCla
         generated += chunk_len;
     }
 
+    // Key A only — do not restore the key B assignment. Bambu tags carry an
+    // all-zero key B (RFID-Tag-Guide, BambuLabRfid.md), so no derived key can
+    // match it; and the trailers' 87 87 87 access bits leave every block this
+    // plugin parses readable with key A, so any key B entry — derived, guessed
+    // or known — buys nothing and costs an auth attempt per block.
     for(size_t sector = 0; sector < sector_count; sector++) {
         const uint8_t* sector_key = &key_material[sector * key_size];
         memcpy(keys->key_a[sector].data, sector_key, key_size);
         FURI_BIT_SET(keys->key_a_mask, sector);
-        memcpy(keys->key_b[sector].data, sector_key, key_size);
-        FURI_BIT_SET(keys->key_b_mask, sector);
     }
 }
 
@@ -285,6 +307,15 @@ static bool bambu_has_required_blocks(const MfClassicData* data) {
     return true;
 }
 
+static bool bambu_block_read_mask_is_populated(const MfClassicData* data) {
+    for(size_t i = 0; i < COUNT_OF(data->block_read_mask); i++) {
+        if(data->block_read_mask[i] != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static bool bambu_read(Nfc* nfc, NfcDevice* device) {
     furi_assert(nfc);
     furi_assert(device);
@@ -294,9 +325,10 @@ static bool bambu_read(Nfc* nfc, NfcDevice* device) {
     nfc_device_copy_data(device, NfcProtocolMfClassic, data);
 
     do {
-        MfClassicType type = MfClassicType1k;
-        MfClassicError error = mf_classic_poller_sync_detect_type(nfc, &type);
-        if(error != MfClassicErrorNone || type != MfClassicType1k) {
+        // The poller that produced this device already ran its own type
+        // detection, so re-probing the card here would only repeat two full
+        // NFC poller cycles to learn what data->type already holds.
+        if(data->type != MfClassicType1k) {
             break;
         }
 
@@ -306,12 +338,32 @@ static bool bambu_read(Nfc* nfc, NfcDevice* device) {
             break;
         }
 
-        data->type = type;
+        // Card-presence fast-fail. mf_classic_poller_sync_read() blocks on
+        // FuriWaitForever and only completes once the card has been detected,
+        // so without a bounded probe first, a card lifted after detection
+        // hangs the NFC app thread. This is the same block-62 nonce probe
+        // detect_type used for its 1K check, but one poller cycle instead of
+        // two.
+        if(mf_classic_poller_sync_collect_nt(nfc, 62, MfClassicKeyTypeA, NULL) !=
+           MfClassicErrorNone) {
+            break;
+        }
 
-        MfClassicDeviceKeys keys = {};
-        bambu_derive_keys_from_uid(uid, uid_len, &keys);
+        // MfClassicDeviceKeys is 496 bytes — a tenth of the NFC app's 5 KB main
+        // thread stack, which this function runs on. mf_classic_poller_sync_read
+        // takes it by value (mf_classic_poller_sync.c:475 copies it into a 544-byte
+        // frame), so as a stack local it sat on that stack twice at once for the
+        // whole of that call. On the heap it is one copy, held only across the
+        // call that needs it.
+        //
+        // Invariant, enforced by nothing but this comment and the adjacency of the
+        // three lines below: no break or return may be inserted between the malloc
+        // and the free. One would leak 496 bytes silently.
+        MfClassicDeviceKeys* keys = malloc(sizeof(MfClassicDeviceKeys));
+        bambu_derive_keys_from_uid(uid, uid_len, keys);
+        MfClassicError error = mf_classic_poller_sync_read(nfc, keys, data);
+        free(keys);
 
-        error = mf_classic_poller_sync_read(nfc, &keys, data);
         if(error != MfClassicErrorNone && error != MfClassicErrorPartialRead) {
             break;
         }
@@ -341,6 +393,20 @@ static bool bambu_parse(const NfcDevice* device, FuriString* parsed_data) {
 
     // Quick type check
     if(data->type != MfClassicType1k) {
+        return false;
+    }
+
+    // Reject a card whose required blocks were never recovered, so a partial
+    // read cannot present zero-filled blocks as genuine spool data.
+    //
+    // The mask test is load-bearing, not redundant: mf_classic_load() zeroes
+    // block_read_mask wholesale for any dump saved without
+    // "Data format version: 2" (firmware mf_classic.c), even though every block
+    // loaded fine. On those files an all-zero mask means "this file predates
+    // the mask", not "nothing was read", so checking the required blocks
+    // unconditionally would reject older saved dumps that parse correctly
+    // today. Only trust the mask when it carries information.
+    if(bambu_block_read_mask_is_populated(data) && !bambu_has_required_blocks(data)) {
         return false;
     }
 
